@@ -1,6 +1,7 @@
-class HX #HERO4 Session
-	camModes=Array[["Video", "Looping"],["Photo"],["Burst","TimeLapse"]]
-	camValues=Array[["0","3"],["0"],["0","1"]]
-	puts camModes.at(0).at(1)
-	puts camValues.at(0).at(1)
+#HERO4 Session
+class HX
+	camModes = [["Video", "Looping"],["Photo"],["Burst","TimeLapse"]]
+	camValues = [["0","3"],["0"],["0","1"]]
+	puts camModes[0][1]
+	puts camValues[0][1]
 end

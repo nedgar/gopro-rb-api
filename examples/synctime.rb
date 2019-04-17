@@ -1,3 +1,5 @@
-require '../lib/goprocam'
+#!/usr/bin/env ruby -w
+require_relative '../lib/goprocam'
+
 gpCamera = Camera.new
-gpCamera.sync_time()
+gpCamera.sync_time

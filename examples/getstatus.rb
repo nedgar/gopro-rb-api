@@ -1,10 +1,15 @@
-require '../lib/goprocam'
-require '../lib/constants'
+#!/usr/bin/env ruby -w
+require_relative '../lib/goprocam'
+require_relative '../lib/constants'
 
 gpCamera = Camera.new
-puts gpCamera.status_raw()
-puts gpCamera.status(Status::Status, Status::STATUS::Mode)
-puts gpCamera.status(Status::Status, Status::STATUS::IsRecording)
-puts gpCamera.status(Status::Settings, Video::FRAME_RATE)
-puts gpCamera.status(Status::Settings, Photo::RESOLUTION)
-puts gpCamera.info_camera(Camera::Name)
+puts gpCamera.status_raw
+puts
+status = gpCamera.status
+puts status[Status::Status][Status::STATUS::Mode]
+puts status[Status::Status][Status::STATUS::SubMode]
+puts status[Status::Status][Status::STATUS::IsRecording]
+puts status[Status::Settings][Video::FRAME_RATE]
+puts status[Status::Settings][Photo::RESOLUTION]
+info = gpCamera.info_camera
+puts info[Camera::Name]

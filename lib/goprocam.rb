@@ -1,334 +1,347 @@
+# frozen_string_literal: true
+
 require 'open-uri'
 require 'socket'
 require 'json'
 require_relative 'constants'
+
 GPIP = "10.5.5.9"
-GOPROCONTROL = "http://10.5.5.9/gp/gpControl/"
-GOPROMEDIA = "http://10.5.5.9/gp/gpMediaList/"
+GOPROCONTROL = "http://#{GPIP}/gp/gpControl/"
+GOPROMEDIA = "http://#{GPIP}/gp/gpMediaList/"
+DEBUG = true
+
 class Camera
-	def initialize()
-		#check if camera is ON:
-		#power_on()
-		#check if camera status is connected
+	def initialize
+		# check if camera is ON:
+		# power_on
+		# check if camera status is connected
+
+		# wait_to_connect
+	end
+
+	def wait_to_connect(delay_secs = 0.1)
 		while status(Status::Status, Status::STATUS::IsConnected) == 0
-			status(Status::Status, Status::STATUS::IsConnected)
+			sleep delay_secs
 		end
-  end
-	def gpControlSet(param,value)
-		response = open(GOPROCONTROL + 'setting/' + param + '/' + value).read
-		puts response
 	end
-	def gpControlCommand(param)
-		response = open(GOPROCONTROL + 'command/' + param).read
-		puts response
+
+	def control_set(param, value)
+		response = gp_control('setting', param, value)
+		debug response
 	end
-	def status_raw()
-		response = open(GOPROCONTROL + 'status').read
-		puts response
-	end 
-	
-	def status(value, param)
-		response = open(GOPROCONTROL + 'status').read
-		parsed_resp = JSON.parse(response)
-		return parsed_resp[value][param]
-	end 
-	def info_camera(option)
-		response = open(GOPROCONTROL + 'info').read
-		parsed_resp = JSON.parse(response)
-		return parsed_resp["info"][option]
+
+	def control_command(*path)
+		response = gp_control('command', *path)
+		debug response
 	end
-	def parse_value(param,value)
-		puts case param
+
+	# for backwards compatibility
+	alias_method :gpControlSet, :control_set
+	alias_method :gpControlCommand, :control_command
+
+	def status_raw
+		response = gp_control('status')
+		# debug response
+    response
+	end
+
+	def status(value = nil, param = nil)
+		response = gp_control_json('status')
+		# debug response
+		status = if value && param
+			response[value][param]
+		elsif value
+			response[value]
+		else
+			response
+		end
+		# debug status
+		status
+	end
+
+	def info_camera(option = nil)
+		response = gp_control_json('info')
+		info = response['info']
+		option ? info[option] : info
+	end
+
+	def parse_value(param, value)
+		debug "parse_value #{param}, #{value}"
+		case param
 			when "mode"
-				puts case value
+				case value
 					when 0
-						return "Video"
+						"Video"
 					when 1
-						return "Photo"
+						"Photo"
 					when 2
-						return "Multi-Shot"
+						"Multi-Shot"
 				end
 			when "sub_mode"
-				puts case status(Status::Status, Status::STATUS::Mode)
+				# TODO: pass in both mode and sub_mode values instead of issuing a request here
+				case status(Status::Status, Status::STATUS::Mode)
 					when 0
-						puts case value
+						case value
 							when 0
-								return "Video"
+								"Video"
 							when 1
-								return "TimeLapse Video"
+								"TimeLapse Video"
 							when 2
-								return "Video+Photo"
+								"Video+Photo"
 							when 3
-								return "Looping"
+								"Looping"
 						end
 					when 1
-						puts case value
-								when 0
-									return "Single Pic"
-								when 1
-									return "Burst"
-								when 2
-									return "NightPhoto"
+						case value
+							when 0
+								"Single Pic"
+							when 1
+								"Burst"
+							when 2
+								"NightPhoto"
 						end
 					when 2
-						puts case value
-								when 0
-									return "Burst"
-								when 1
-									return "TimeLapse"
-								when 2
-									return "Night lapse"
+						case value
+							when 0
+								"Burst"
+							when 1
+								"TimeLapse"
+							when 2
+								"Night lapse"
 						end
 				end
 			when "recording"
-				puts case value
+				case value
 					when 0
-						return "Not recording - standby"
+						"Not recording - standby"
 					when 1
-						return "RECORDING!"
+						"RECORDING!"
 				end
 			when "battery"
-				puts case value
+				case value
 					when 0
-						return "Nearly Empty"
+						"Nearly Empty!"
 					when 1
-						return "LOW"
+						"Low"
 					when 2
-						return "Halfway"
+						"Halfway"
 					when 3
-						return "Full"
+						"Full"
 					when 4
-						return "Charging"
+						"Charging"
 				end
 			when "video_left"
-				return Time.at(value).utc.strftime("%H:%M:%S")
+				Time.at(value).utc.strftime("%H:%M:%S")
 			when "rem_space"
-				return (value.to_f/1000000).round(2).to_s
+				"%.2f" % (value.to_f / 1e6)
 			when "video_res"
-				puts case value
+				case value
 					when 1
-							return "4k"
+						"4k"
 					when 2
-							return "4kSV"
+						"4kSV"
+					when 3
+						"1440p"
 					when 4
-							return "2k"
+						"2k"
 					when 5
-							return "2kSV"
+						"2kSV"
 					when 6
-							return "2k4by3"
+						"2k4by3"
 					when 7
-							return "1440p"
+						"1440p"
 					when 8
-							return "1080pSV"
+						"1080pSV"
 					when 9
-							return "1080p"
+						"1080p"
 					when 10
-							return "960p"
+						"960p"
 					when 11
-							return "720pSV"
+						"720pSV"
 					when 12
-							return "720p"
+						"720p"
 					when 13
-							return "480p"
+						"480p"
 				end
 			when "video_fr"
-				puts case value
+				case value
 					when 0
-							return "240"
+						"240"
 					when 1
-							return "120"
+						"120"
 					when 2
-							return "100"
+						"100"
 					when 5
-							return "60"
+						"60"
 					when 6
-							return "50"
+						"50"
 					when 7
-							return "48"
+						"48"
 					when 8
-							return "30"
+						"30"
 					when 9
-							return "25"
+						"25"
 					when 10
-							return "24"
+						"24"
 				end
-		 end
+		end
 	end
-	def overview()
-		puts "camera overview"
-		puts "current mode: ", "    " + parse_value("mode",status(Status::Status, Status::STATUS::Mode))
-		puts "current submode: ", "    " + parse_value("sub_mode",status(Status::Status, Status::STATUS::SubMode))
-		puts "current video resolution: ", "    " + parse_value("video_res",status(Status::Settings, Video::RESOLUTION))
-		puts "current video framerate: ", "    " + parse_value("video_fr",status(Status::Settings, Video::FRAME_RATE))
-		puts "pictures taken: ", "    " + status(Status::Status, Status::STATUS::PhotosTaken).to_s
-		puts "videos taken: ",  "    " + status(Status::Status, Status::STATUS::VideosTaken).to_s
-		puts "videos left: ", "    " + parse_value("video_left",status(Status::Status, Status::STATUS::RemVideoTime))
-		puts "pictures left: ", "    " + status(Status::Status, Status::STATUS::RemPhotos).to_s
-		puts "battery left: ", "    " + parse_value("battery",status(Status::Status, Status::STATUS::BatteryLevel))
-		puts "space left in sd (GBs): ", "    " + parse_value("rem_space",status(Status::Status, Status::STATUS::RemainingSpace))
-		puts "camera SSID: ", "    " + status(Status::Status, Status::STATUS::CamName).to_s
-		puts "Is Recording:", "    " + parse_value("recording",status(Status::Status, Status::STATUS::IsRecording))
-		puts "Clients connected: ", "    " + status(Status::Status, Status::STATUS::IsConnected).to_s
-		puts "camera model: ", "    " + info_camera(Camera::Name)
-		puts "camera ssid name: ", "    " + info_camera(Camera::SSID)
-		puts "firmware version: ", "    " + info_camera(Camera::Firmware)
-		puts "serial number: ", "    " + info_camera(Camera::SerialNumber)
+
+	def overview
+		combined_status = self.status
+		debug combined_status
+
+		status = combined_status[Status::Status]
+		settings = combined_status[Status::Settings]
+		info_camera = self.info_camera
+
+		puts "Camera overview:"
+		[
+			["current mode", parse_value("mode", status[Status::STATUS::Mode])],
+			["current submode", parse_value("sub_mode", status[Status::STATUS::SubMode])],
+			["current video resolution", parse_value("video_res", status[Video::RESOLUTION])],
+			["current video framerate", parse_value("video_fr", status[Video::FRAME_RATE])],
+			["photos taken", status[Status::STATUS::PhotosTaken].to_s],
+			["batch photos taken", status[Status::STATUS::BatchPhotosTaken].to_s],
+			["videos taken",  status[Status::STATUS::VideosTaken].to_s],
+			["video time left", parse_value("video_left", status[Status::STATUS::RemVideoTime])],
+			["pictures left", status[Status::STATUS::RemPhotos].to_s],
+			["battery left", parse_value("battery", status[Status::STATUS::BatteryLevel])],
+			["space left on SD (GBs)", parse_value("rem_space", status[Status::STATUS::RemainingSpace])],
+			["camera name", status[Status::STATUS::CamName].to_s],
+			["is recording:", parse_value("recording", status[Status::STATUS::IsRecording])],
+			["clients connected", status[Status::STATUS::IsConnected].to_s],
+			["camera model", info_camera[Camera::Name]],
+			["camera SSID", info_camera[Camera::SSID]],
+			["firmware version", info_camera[Camera::Firmware]],
+			["serial number", info_camera[Camera::SerialNumber]]
+		].each do |label, value|
+			puts label + ": ", "    #{value}"
+		end
 	end
+
 	def shutter(value)
-		response = gpControlCommand('shutter?p=' + value)
-		puts response
+		control_command('shutter?p=' + value)
 	end
-	def take_photo()
+
+	def take_photo
 		if status(Status::Status, Status::STATUS::IsRecording) == "1"
 			shutter(Shutter::OFF)
 		end
 		camera_mode(Mode::PhotoMode)
 		shutter(Shutter::ON)
 	end
-	def camera_mode(mode, submode="0")
-		response = gpControlCommand('sub_mode?mode=' + mode + '&sub_mode=' + submode)
-		puts response
+
+	def camera_mode(mode, submode = 0)
+		control_command("sub_mode?mode=#{mode}&sub_mode=#{submode}")
 	end
 
 	def delete(option)
-		response = gpControlCommand('storage/delete/' + option)
-		puts response
+		control_command('storage', 'delete', option)
 	end
 
-	def delete_file(folder,file)
-		response = gpControlCommand('storage/delete?p=' + folder + "/" + file)
-		puts response
+	def delete_file(folder, file)
+		# TODO: URI-encode folder/file path
+		control_command('storage', "delete?p=#{folder}/#{file}")
 	end
 
 	def locate(param)
-		response = gpControlCommand('system/locate?p=' + param)
-		puts response
+		control_command('system', "locate?p=#{param}")
 	end
 
-	def hilight()
-		response = gpControlCommand('storage/tag_moment')
-		puts response
+	def hilight
+		control_command('storage', 'tag_moment')
 	end
 
-	def power_off()
-		response = gpControlCommand('system/sleep')
-		puts response
+	def power_off
+		control_command('system', 'sleep')
 	end
-	
 
-	def ap_setting(ssid,pass)
-		response = gpControlCommand('wireless/ap/ssid?ssid=' + ssid + "&pw=" + passwd)
-		puts response
+	def ap_setting(ssid, passwd)
+		control_command('wireless', 'ap', "ssid?ssid=#{ssid}&pw=#{passwd}")
 	end
 
 	def reset(option)
 		#videoPT, photoPT, msPT, camera, etc...
-		puts case option
+		case option
 			when Reset::VideoPT
 				#reset video PT
-				response = gpControlCommand('video/protune/reset')
-				puts response
+				control_command('video', 'protune', 'reset')
 			when Reset::PhotoPT
 				#reset photo PT
-				response = gpControlCommand('photo/protune/reset')
-				puts response
+				control_command('photo', 'protune', 'reset')
 			when Reset::MultiShotPT
 				#reset Ms PT
-				response = gpControlCommand('multi_shot/protune/reset')
-				puts response
+				control_command('multi_shot', 'protune', 'reset')
 			when Reset::CamReset
-				response = gpControlCommand('system/factory/reset')
-				puts response
+				control_command('system', 'factory', 'reset')
 		end
 	end
-	def list_media()
-		response = open(GOPROMEDIA).read
-		return JSON.pretty_generate JSON.parse(response)
-	end
-	def get_media()
-		folder=""
-		file=""
-		response = open(GOPROMEDIA).read
-		parsed_resp = JSON.parse(response)
-		parsed_resp['media'].each do |child|
-    	folder = child['d'] 
-		end
-		parsed_resp['media'].each do |child|
-    	child['fs'].each do |child|
-    	file = child['n'] 
-			end
-		end
-		return "http://10.5.5.9:8080/videos/DCIM/" + folder + "/" + file
-	end
-	def get_media_info(option)
-		folder=""
-		file=""
-		size=""
-		response = open(GOPROMEDIA).read
-		parsed_resp = JSON.parse(response)
-		parsed_resp['media'].each do |child|
-    	folder = child['d'] 
-		end
-		parsed_resp['media'].each do |child|
-    	child['fs'].each do |child|
-    	file = child['n'] 
-			size = child['s']
-			end
-		end
-		puts case option
-			when "folder"
-				return folder
-			when "file"
-				return file
-			when "size"
-				return size
-		end
-	end
-	def sync_time()
-		datestr_year=Time.new.year.to_s.reverse[0...2].reverse.to_i.to_s(16)
-		datestr_month=Time.new.month.to_s(16)
-		datestr_day=Time.new.day.to_s(16)
-		datestr_hour=Time.new.hour.to_s(16)
-		datestr_min=Time.new.min.to_s(16)
-		datestr_sec=Time.new.sec.to_s(16)
-		datestr="%"+datestr_year+"%"+datestr_month+"%"+datestr_day+"%"+datestr_hour+"%"+datestr_min+"%"+datestr_sec
-		response = gpControlCommand('setup/date_time?p=' + datestr)
-		puts response
-	end
-	def dl_media()
-		folder=""
-		file=""
-		response = open(GOPROMEDIA).read
-		parsed_resp = JSON.parse(response)
-		parsed_resp['media'].each do |child|
-    	folder = child['d'] 
-		end
-		parsed_resp['media'].each do |child|
-    	child['fs'].each do |child|
-    	file = child['n'] 
-			end
-		end
-		url = get_media()
-		open(url) {|f|
-			File.open(folder+"-"+file,"wb") do |file|
-				file.puts f.read
-		end
-		}
 
+	def list_media
+		JSON.pretty_generate gp_media_json
+	end
+
+	def get_media
+		info = media_info
+		"http://#{GPIP}:8080/videos/DCIM/#{info[:folder]}/#{info[:file]}"
+	end
+
+	def media_info
+		response = gp_media_json
+		entry = response['media'].last
+		{
+			folder: entry && entry['d'],
+			file: entry && entry['fs'].last['n'],
+			size: entry && entry['fs'].last['s']
+		}
+	end
+
+	def get_media_info(option)
+		media_info[option.to_sym]
+	end
+
+	def sync_time(t = Time.new)
+		datestr = [t.year % 100, t.month, t.day, t.hour, t.min, t.sec].map { |v| '%' + v.to_s(16) }.join('')
+		control_command('setup', 'date_time?p=' + datestr)
+	end
+
+	def dl_media
+		info = media_info
+		filename = "#{info[:folder]}-#{info[:file]}"
+		url = get_media
+		open(url) do |src|
+			File.open(filename, 'wb') do |dest|
+				IO.copy_stream(src, dest)
+			end
+		end
 	end
 
 	def livestream(option)
-		puts case option
-			when "start"
-				response = open(GOPROCONTROL + 'execute?p1=gpStream&a1=proto_v2&c1=start').read
-				puts response
-			when "stop"
-				response = open(GOPROCONTROL + 'execute?p1=gpStream&a1=proto_v2&c1=stop').read
-				puts response
-			when "restart"
-				response = open(GOPROCONTROL + 'execute?p1=gpStream&a1=proto_v2&c1=restart').read
-				puts response
+		if %w(start stop restart).include?(option)
+			response = gp_control_json('execute?p1=gpStream&a1=proto_v2&c1=' + option)
+			debug response
 		end
 	end
-end
 
+	private
+
+	def debug(msg)
+		puts msg if DEBUG
+	end
+
+	def gp_control(*path)
+    # debug path.join('/')
+		open(GOPROCONTROL + path.join('/')).read
+	end
+
+	def gp_control_json(*path)
+		response = gp_control(*path)
+		JSON.parse(response)
+	end
+
+	def gp_media_json
+		response = open(GOPROMEDIA).read
+		JSON.parse(response)
+	end
+end
