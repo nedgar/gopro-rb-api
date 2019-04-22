@@ -322,8 +322,8 @@ class Camera
 	def livestream(option)
 		case option
 		when Livestream::START, Livestream::STOP,  Livestream::RESTART
-			response = gp_control_json('execute?p1=gpStream&a1=proto_v2&c1=' + option)
-			# debug response
+			_response = gp_control_json('execute?p1=gpStream&a1=proto_v2&c1=' + option)
+			# debug _response
 		end
 	end
 
