@@ -8,6 +8,8 @@ require_relative 'constants'
 GPIP = "10.5.5.9"
 GOPROCONTROL = "http://#{GPIP}/gp/gpControl/"
 GOPROMEDIA = "http://#{GPIP}/gp/gpMediaList/"
+GOPRO_STREAMING_PORT = 8554
+
 DEBUG = true
 
 class Camera
@@ -66,7 +68,7 @@ class Camera
 	end
 
 	def parse_value(param, value)
-		debug "parse_value #{param}, #{value}"
+		# debug "parse_value #{param}, #{value}"
 		case param
 			when "mode"
 				case value
@@ -189,7 +191,7 @@ class Camera
 
 	def overview
 		combined_status = self.status
-		debug combined_status
+		# debug JSON.pretty_generate(combined_status)
 
 		status = combined_status[Status::Status]
 		settings = combined_status[Status::Settings]
@@ -199,8 +201,8 @@ class Camera
 		[
 			["current mode", parse_value("mode", status[Status::STATUS::Mode])],
 			["current submode", parse_value("sub_mode", status[Status::STATUS::SubMode])],
-			["current video resolution", parse_value("video_res", status[Video::RESOLUTION])],
-			["current video framerate", parse_value("video_fr", status[Video::FRAME_RATE])],
+			["current video resolution", parse_value("video_res", settings[Video::RESOLUTION])],
+			["current video framerate", parse_value("video_fr", settings[Video::FRAME_RATE])],
 			["photos taken", status[Status::STATUS::PhotosTaken].to_s],
 			["batch photos taken", status[Status::STATUS::BatchPhotosTaken].to_s],
 			["videos taken",  status[Status::STATUS::VideosTaken].to_s],
@@ -209,7 +211,7 @@ class Camera
 			["battery left", parse_value("battery", status[Status::STATUS::BatteryLevel])],
 			["space left on SD (GBs)", parse_value("rem_space", status[Status::STATUS::RemainingSpace])],
 			["camera name", status[Status::STATUS::CamName].to_s],
-			["is recording:", parse_value("recording", status[Status::STATUS::IsRecording])],
+			["is recording", parse_value("recording", status[Status::STATUS::IsRecording])],
 			["clients connected", status[Status::STATUS::IsConnected].to_s],
 			["camera model", info_camera[Camera::Name]],
 			["camera SSID", info_camera[Camera::SSID]],
@@ -318,9 +320,28 @@ class Camera
 	end
 
 	def livestream(option)
-		if %w(start stop restart).include?(option)
+		case option
+		when Livestream::START, Livestream::STOP,  Livestream::RESTART
 			response = gp_control_json('execute?p1=gpStream&a1=proto_v2&c1=' + option)
-			debug response
+			# debug response
+		end
+	end
+
+	KEEP_ALIVE_MSG = ("_GPHD_:%u:%u:%d:%.6f\n" % [0, 0, 2, 0]).encode('UTF-8')
+
+	def keep_alive(sleep_ms = 2500)
+		socket = UDPSocket.new
+		# socket.connect(GPIP, GOPRO_STREAMING_PORT)
+		i = 0
+		while true
+			socket.send(KEEP_ALIVE_MSG, 0, GPIP, GOPRO_STREAMING_PORT)
+			if block_given?
+				yield i
+			else
+				print "."
+			end
+			sleep sleep_ms / 1000.0
+			i += 1
 		end
 	end
 
